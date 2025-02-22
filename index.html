@@ -24,37 +24,77 @@
         const btcSound = new Audio('btc.mp3');
         const warningSound = new Audio('warning.mp3');
         const bgm = new Audio('bgm.mp3');
-        bgm.loop = true; // Loop background music
-        bgm.volume = 0.3; // Lower volume to avoid overpowering effects
+        bgm.loop = true;
+        bgm.volume = 0.3;
         let isWarningPlaying = false;
 
         // Game variables
         const CELL_SIZE = 60;
-        let player = { x: CELL_SIZE, y: CELL_SIZE };
-        let btc = { x: CELL_SIZE * 11, y: CELL_SIZE * 8 };
-        let coins = [{ x: CELL_SIZE * 3, y: CELL_SIZE * 2 }, { x: CELL_SIZE * 5, y: CELL_SIZE * 4 }];
+        const GRID_WIDTH = 13; // 800 / 60 ≈ 13 cells wide
+        const GRID_HEIGHT = 10; // 600 / 60 = 10 cells tall
+        let player = { x: CELL_SIZE, y: CELL_SIZE }; // Start at (1, 1)
+        let btc = { x: 0, y: 0 }; // Set later after maze generation
+        let coins = [];
         let score = 0;
         let timer = 60;
+        let maze = [];
 
-        // Simple maze (1 = wall, 0 = path)
-        const maze = [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
-            [1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        ];
+        // Maze generation (recursive backtracking)
+        function generateMaze() {
+            // Initialize maze with all walls (1)
+            maze = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(1));
+
+            function carve(x, y) {
+                maze[y][x] = 0; // Mark as path
+                const directions = [[0, -2], [2, 0], [0, 2], [-2, 0]]; // Up, Right, Down, Left
+                directions.sort(() => Math.random() - 0.5); // Shuffle
+
+                for (let [dx, dy] of directions) {
+                    const newX = x + dx;
+                    const newY = y + dy;
+                    if (newX > 0 && newX < GRID_WIDTH - 1 && newY > 0 && newY < GRID_HEIGHT - 1 && maze[newY][newX] === 1) {
+                        maze[y + dy / 2][x + dx / 2] = 0; // Carve wall between
+                        carve(newX, newY);
+                    }
+                }
+            }
+
+            // Start at (1, 1) and ensure edges remain walls
+            carve(1, 1);
+
+            // Place BTC randomly in an open cell
+            do {
+                btc.x = Math.floor(Math.random() * (GRID_WIDTH - 2) + 1) * CELL_SIZE;
+                btc.y = Math.floor(Math.random() * (GRID_HEIGHT - 2) + 1) * CELL_SIZE;
+            } while (maze[Math.floor(btc.y / CELL_SIZE)][Math.floor(btc.x / CELL_SIZE)] === 1);
+
+            // Place 3-5 coins randomly
+            coins = [];
+            const coinCount = Math.floor(Math.random() * 3) + 3; // 3 to 5 coins
+            for (let i = 0; i < coinCount; i++) {
+                let coinX, coinY;
+                do {
+                    coinX = Math.floor(Math.random() * (GRID_WIDTH - 2) + 1) * CELL_SIZE;
+                    coinY = Math.floor(Math.random() * (GRID_HEIGHT - 2) + 1) * CELL_SIZE;
+                } while (maze[Math.floor(coinY / CELL_SIZE)][Math.floor(coinX / CELL_SIZE)] === 1 || 
+                         (coinX === btc.x && coinY === btc.y) || 
+                         coins.some(c => c.x === coinX && c.y === coinY));
+                coins.push({ x: coinX, y: coinY });
+            }
+        }
 
         function isWall(x, y) {
             const gridX = Math.floor(x / CELL_SIZE);
             const gridY = Math.floor(y / CELL_SIZE);
             return maze[gridY][gridX] === 1;
+        }
+
+        // Check collision (overlap of 60x60 sprites)
+        function checkCollision(obj1, obj2) {
+            return obj1.x < obj2.x + CELL_SIZE &&
+                   obj1.x + CELL_SIZE > obj2.x &&
+                   obj1.y < obj2.y + CELL_SIZE &&
+                   obj1.y + CELL_SIZE > obj2.y;
         }
 
         // Movement
@@ -80,19 +120,19 @@
                 return; // Game over
             }
 
-            if (player.x === btc.x && player.y === btc.y) {
+            // BTC collision
+            if (checkCollision(player, btc)) {
                 score += 500;
                 btcSound.play();
-                btc.x = Math.floor(Math.random() * 11 + 1) * CELL_SIZE;
-                btc.y = Math.floor(Math.random() * 9 + 1) * CELL_SIZE;
-                while (isWall(btc.x, btc.y)) {
-                    btc.x = Math.floor(Math.random() * 11 + 1) * CELL_SIZE;
-                    btc.y = Math.floor(Math.random() * 9 + 1) * CELL_SIZE;
-                }
+                do {
+                    btc.x = Math.floor(Math.random() * (GRID_WIDTH - 2) + 1) * CELL_SIZE;
+                    btc.y = Math.floor(Math.random() * (GRID_HEIGHT - 2) + 1) * CELL_SIZE;
+                } while (maze[Math.floor(btc.y / CELL_SIZE)][Math.floor(btc.x / CELL_SIZE)] === 1);
             }
 
+            // Coin collision
             coins = coins.filter(coin => {
-                if (player.x === coin.x && player.y === coin.y) {
+                if (checkCollision(player, coin)) {
                     score += 10;
                     timer += 5;
                     coinSound.play();
@@ -116,8 +156,8 @@
             ctx.fillRect(0, 0, 800, 600);
 
             // Draw maze
-            for (let y = 0; y < maze.length; y++) {
-                for (let x = 0; x < maze[0].length; x++) {
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
                     if (maze[y][x] === 1) {
                         ctx.fillStyle = '#666';
                         ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
@@ -146,11 +186,18 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Start background music and game when images load
-        bonzoImg.onload = btcImg.onload = () => {
+        // Start game
+        function startGame() {
+            generateMaze();
+            player = { x: CELL_SIZE, y: CELL_SIZE }; // Reset player position
+            score = 0;
+            timer = 60;
+            isWarningPlaying = false;
             bgm.play();
             gameLoop();
-        };
+        }
+
+        bonzoImg.onload = btcImg.onload = () => startGame();
     </script>
 </body>
 </html>
