@@ -20,6 +20,8 @@
             left: 20px;
             display: flex;
             gap: 10px;
+            opacity: 0; /* Hidden by default on PC */
+            transition: opacity 0.3s;
         }
         .button {
             background: rgba(255, 255, 255, 0.7);
@@ -37,11 +39,20 @@
                 bottom: 10px; 
                 left: 10px; 
                 gap: 5px;
+                opacity: 1; /* Visible on mobile */
             }
             .button { 
                 padding: 8px 15px; 
                 font-size: 14px;
             }
+        }
+        /* Show controls on PC if touch is not supported or screen is large */
+        @media (min-width: 801px) and (hover: hover) {
+            .controls { opacity: 0; pointer-events: none; } /* Hide on PC with mouse */
+        }
+        /* Show controls on touch devices or small screens */
+        @media (max-width: 800px), (any-pointer: coarse) {
+            .controls { opacity: 1; pointer-events: auto; } /* Show on mobile/touch */
         }
     </style>
 </head>
@@ -138,7 +149,25 @@
                    obj1.y + CELL_SIZE > obj2.y;
         }
 
-        // Touch controls
+        // Dual input: Keyboard for PC, Touch for mobile
+        let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+
+        // Keyboard controls (for PC)
+        document.addEventListener('keydown', (e) => {
+            if (isTouchDevice) return; // Skip keyboard if on touch device
+            let newX = player.x;
+            let newY = player.y;
+            if (e.key === 'ArrowUp') newY -= CELL_SIZE;
+            if (e.key === 'ArrowDown') newY += CELL_SIZE;
+            if (e.key === 'ArrowLeft') newX -= CELL_SIZE;
+            if (e.key === 'ArrowRight') newX += CELL_SIZE;
+            if (!isWall(newX, newY)) {
+                player.x = newX;
+                player.y = newY;
+            }
+        });
+
+        // Touch controls (for mobile)
         const controls = {
             up: document.getElementById('up'),
             left: document.getElementById('left'),
@@ -149,6 +178,7 @@
         Object.values(controls).forEach(button => {
             button.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                if (!isTouchDevice) return; // Skip touch if not on touch device
                 const move = button.id;
                 let newX = player.x;
                 let newY = player.y;
@@ -163,6 +193,7 @@
             });
             button.addEventListener('click', (e) => {
                 e.preventDefault();
+                if (!isTouchDevice) return; // Skip click if not on touch device
                 const move = button.id;
                 let newX = player.x;
                 let newY = player.y;
@@ -176,15 +207,6 @@
                 }
             });
         });
-
-        function requestFullScreen() {
-            if (canvas.requestFullscreen) {
-                canvas.requestFullscreen();
-            } else if (canvas.webkitRequestFullscreen) {
-                canvas.webkitRequestFullscreen();
-            }
-        }
-// Add a full-screen button in HTML and call this function on click.
 
         // Game loop
         function gameLoop() {
@@ -262,7 +284,15 @@
             gameLoop();
         }
 
-        
+        // Detect device and initialize controls
+        isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+        if (isTouchDevice) {
+            document.querySelector('.controls').style.opacity = 1; // Show touch controls on mobile
+        } else {
+            document.querySelector('.controls').style.opacity = 0; // Hide on PC
+            document.querySelector('.controls').style.pointerEvents = 'none'; // Disable clicks on PC
+        }
+
         bonzoImg.onload = btcImg.onload = () => startGame();
     </script>
 </body>
