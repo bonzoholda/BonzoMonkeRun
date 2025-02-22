@@ -77,10 +77,25 @@
         const ctx = canvas.getContext('2d');
         const controls = document.querySelector('.controls');
 
-        // Load images
+        // Load images with error handling
         const bonzoImg = new Image();
-        bonzoImg.src = 'bonzo_monke.png';
         const btcImg = new Image();
+        let imagesLoaded = 0;
+        let totalImages = 2;
+
+        function imageLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                startGame();
+            }
+        }
+
+        bonzoImg.onload = imageLoaded;
+        bonzoImg.onerror = () => console.error('Failed to load bonzo_monke.png');
+        bonzoImg.src = 'bonzo_monke.png';
+
+        btcImg.onload = imageLoaded;
+        btcImg.onerror = () => console.error('Failed to load btc_logo.png');
         btcImg.src = 'btc_logo.png';
 
         // Load sounds
@@ -272,8 +287,13 @@
                 ctx.fill();
             });
 
-            ctx.drawImage(btcImg, btc.x, btc.y, CELL_SIZE, CELL_SIZE);
-            ctx.drawImage(bonzoImg, player.x, player.y, CELL_SIZE, CELL_SIZE);
+            // Draw BTC and player only if images are loaded
+            if (bonzoImg.complete && btcImg.complete) {
+                ctx.drawImage(btcImg, btc.x, btc.y, CELL_SIZE, CELL_SIZE);
+                ctx.drawImage(bonzoImg, player.x, player.y, CELL_SIZE, CELL_SIZE);
+            } else {
+                console.warn('Images not fully loaded yet, skipping draw.');
+            }
 
             ctx.fillStyle = '#fff';
             ctx.font = '20px Arial';
@@ -301,9 +321,6 @@
             }
             gameLoop();
         }
-
-        // Load and start game
-        bonzoImg.onload = btcImg.onload = () => startGame();
     </script>
 </body>
 </html>
