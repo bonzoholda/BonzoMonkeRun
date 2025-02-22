@@ -12,69 +12,40 @@
             align-items: center; 
             height: 100vh; 
             overflow: hidden;
-            touch-action: manipulation; /* Prevents default touch behaviors */
         }
-        .controls {
+        #startScreen {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            display: flex;
-            gap: 10px;
-            opacity: 0; /* Hidden by default on PC */
-            transition: opacity 0.3s;
-            pointer-events: none; /* Non-interactive by default */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            z-index: 1000; /* Ensure it’s above the canvas */
         }
-        .button {
+        .startButton {
             background: rgba(255, 255, 255, 0.7);
             border: 2px solid #fff;
             border-radius: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
+            padding: 15px 30px;
+            font-size: 18px;
+            margin: 10px;
             cursor: pointer;
             user-select: none;
         }
-        .button:active { background: rgba(255, 255, 255, 0.9); }
-        @media (max-width: 800px) {
-            canvas { width: 100vw; height: auto; max-height: 100vh; }
-            .controls { 
-                bottom: 10px; 
-                left: 10px; 
-                gap: 5px;
-                opacity: 1; /* Visible on mobile */
-                pointer-events: auto; /* Interactive on mobile */
-            }
-            .button { 
-                padding: 8px 15px; 
-                font-size: 14px;
-            }
-        }
-        /* Ensure controls are hidden on PC (large screens with mouse) */
-        @media (min-width: 801px) and (hover: hover) {
-            .controls { 
-                opacity: 0; 
-                pointer-events: none; 
-            }
-        }
-        /* Ensure controls are visible on touch devices (small or large) */
-        @media (any-pointer: coarse) {
-            .controls { 
-                opacity: 1; 
-                pointer-events: auto; 
-            }
-        }
+        .startButton:active { background: rgba(255, 255, 255, 0.9); }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div class="controls">
-        <div class="button" id="up">↑</div>
-        <div class="button" id="left">←</div>
-        <div class="button" id="right">→</div>
-        <div class="button" id="down">↓</div>
+    <div id="startScreen">
+        <h1>BonzoMonke Run</h1>
+        <button class="startButton" id="pcMode">Play on PC (Keyboard)</button>
+        <button class="startButton" id="mobileMode">Play on Mobile (Touch)</button>
     </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
 
         // Load images
         const bonzoImg = new Image();
@@ -102,8 +73,14 @@
         let timer = 60;
         let maze = [];
 
-        // Detect device (more robust check)
-        let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0 || 'ontouch' in document.documentElement;
+        // Start screen buttons
+        document.getElementById('pcMode').addEventListener('click', () => {
+            startScreen.style.display = 'none'; // Hide start screen
+            startGame(); // Start PC game in this file
+        });
+        document.getElementById('mobileMode').addEventListener('click', () => {
+            window.location.href = 'mobile.html'; // Redirect to mobile version
+        });
 
         // Maze generation (recursive backtracking)
         function generateMaze() {
@@ -163,9 +140,8 @@
                    obj1.y + CELL_SIZE > obj2.y;
         }
 
-        // Keyboard controls (for PC)
+        // Movement
         document.addEventListener('keydown', (e) => {
-            if (isTouchDevice) return; // Skip keyboard if on touch device
             let newX = player.x;
             let newY = player.y;
             if (e.key === 'ArrowUp') newY -= CELL_SIZE;
@@ -176,47 +152,6 @@
                 player.x = newX;
                 player.y = newY;
             }
-        });
-
-        // Touch controls (for mobile)
-        const controls = {
-            up: document.getElementById('up'),
-            left: document.getElementById('left'),
-            right: document.getElementById('right'),
-            down: document.getElementById('down')
-        };
-
-        Object.values(controls).forEach(button => {
-            button.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (!isTouchDevice) return; // Skip touch if not on touch device
-                const move = button.id;
-                let newX = player.x;
-                let newY = player.y;
-                if (move === 'up') newY -= CELL_SIZE;
-                if (move === 'down') newY += CELL_SIZE;
-                if (move === 'left') newX -= CELL_SIZE;
-                if (move === 'right') newX += CELL_SIZE;
-                if (!isWall(newX, newY)) {
-                    player.x = newX;
-                    player.y = newY;
-                }
-            });
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (!isTouchDevice) return; // Skip click if not on touch device
-                const move = button.id;
-                let newX = player.x;
-                let newY = player.y;
-                if (move === 'up') newY -= CELL_SIZE;
-                if (move === 'down') newY += CELL_SIZE;
-                if (move === 'left') newX -= CELL_SIZE;
-                if (move === 'right') newX += CELL_SIZE;
-                if (!isWall(newX, newY)) {
-                    player.x = newX;
-                    player.y = newY;
-                }
-            });
         });
 
         // Game loop
@@ -294,7 +229,7 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Start game
+        // Start game (PC version)
         function startGame() {
             generateMaze();
             player = { x: CELL_SIZE, y: CELL_SIZE }; // Reset player position
@@ -302,20 +237,13 @@
             timer = 60;
             isWarningPlaying = false;
             bgm.play();
-
-            // Adjust controls visibility based on device
-            if (isTouchDevice) {
-                controls.style.opacity = 1;
-                controls.style.pointerEvents = 'auto';
-            } else {
-                controls.style.opacity = 0;
-                controls.style.pointerEvents = 'none';
-            }
             gameLoop();
         }
 
-        // Start game when images load
-        bonzoImg.onload = btcImg.onload = () => startGame();
+        // Start game when images load, but only after start screen choice
+        bonzoImg.onload = btcImg.onload = () => {
+            // Do nothing here; game starts via startScreen buttons
+        };
     </script>
 </body>
 </html>
