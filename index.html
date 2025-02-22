@@ -4,11 +4,55 @@
     <title>BonzoMonke Run</title>
     <style>
         canvas { border: 1px solid black; }
-        body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; }
+        body { 
+            margin: 0; 
+            background: #000; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            overflow: hidden;
+            touch-action: manipulation; /* Prevents default touch behaviors */
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .button {
+            background: rgba(255, 255, 255, 0.7);
+            border: 2px solid #fff;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .button:active { background: rgba(255, 255, 255, 0.9); }
+        @media (max-width: 800px) {
+            canvas { width: 100vw; height: auto; max-height: 100vh; }
+            .controls { 
+                bottom: 10px; 
+                left: 10px; 
+                gap: 5px;
+            }
+            .button { 
+                padding: 8px 15px; 
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="controls">
+        <div class="button" id="up">↑</div>
+        <div class="button" id="left">←</div>
+        <div class="button" id="right">→</div>
+        <div class="button" id="down">↓</div>
+    </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -41,7 +85,6 @@
 
         // Maze generation (recursive backtracking)
         function generateMaze() {
-            // Initialize maze with all walls (1)
             maze = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(1));
 
             function carve(x, y) {
@@ -59,8 +102,7 @@
                 }
             }
 
-            // Start at (1, 1) and ensure edges remain walls
-            carve(1, 1);
+            carve(1, 1); // Start at (1, 1)
 
             // Place BTC randomly in an open cell
             do {
@@ -89,7 +131,6 @@
             return maze[gridY][gridX] === 1;
         }
 
-        // Check collision (overlap of 60x60 sprites)
         function checkCollision(obj1, obj2) {
             return obj1.x < obj2.x + CELL_SIZE &&
                    obj1.x + CELL_SIZE > obj2.x &&
@@ -97,40 +138,71 @@
                    obj1.y + CELL_SIZE > obj2.y;
         }
 
-        // Movement
-        document.addEventListener('keydown', (e) => {
-            let newX = player.x;
-            let newY = player.y;
-            if (e.key === 'ArrowUp') newY -= CELL_SIZE;
-            if (e.key === 'ArrowDown') newY += CELL_SIZE;
-            if (e.key === 'ArrowLeft') newX -= CELL_SIZE;
-            if (e.key === 'ArrowRight') newX += CELL_SIZE;
-            if (!isWall(newX, newY)) {
-                player.x = newX;
-                player.y = newY;
-            }
+        // Touch controls
+        const controls = {
+            up: document.getElementById('up'),
+            left: document.getElementById('left'),
+            right: document.getElementById('right'),
+            down: document.getElementById('down')
+        };
+
+        Object.values(controls).forEach(button => {
+            button.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const move = button.id;
+                let newX = player.x;
+                let newY = player.y;
+                if (move === 'up') newY -= CELL_SIZE;
+                if (move === 'down') newY += CELL_SIZE;
+                if (move === 'left') newX -= CELL_SIZE;
+                if (move === 'right') newX += CELL_SIZE;
+                if (!isWall(newX, newY)) {
+                    player.x = newX;
+                    player.y = newY;
+                }
+            });
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const move = button.id;
+                let newX = player.x;
+                let newY = player.y;
+                if (move === 'up') newY -= CELL_SIZE;
+                if (move === 'down') newY += CELL_SIZE;
+                if (move === 'left') newX -= CELL_SIZE;
+                if (move === 'right') newX += CELL_SIZE;
+                if (!isWall(newX, newY)) {
+                    player.x = newX;
+                    player.y = newY;
+                }
+            });
         });
+
+        function requestFullScreen() {
+            if (canvas.requestFullscreen) {
+                canvas.requestFullscreen();
+            } else if (canvas.webkitRequestFullscreen) {
+                canvas.webkitRequestFullscreen();
+            }
+        }
+// Add a full-screen button in HTML and call this function on click.
 
         // Game loop
         function gameLoop() {
-            // Update
             timer -= 1 / 60;
             if (timer <= 0) {
                 bgm.pause();
                 return; // Game over
             }
 
-            // BTC collision
             if (checkCollision(player, btc)) {
                 score += 500;
                 btcSound.play();
                 do {
                     btc.x = Math.floor(Math.random() * (GRID_WIDTH - 2) + 1) * CELL_SIZE;
                     btc.y = Math.floor(Math.random() * (GRID_HEIGHT - 2) + 1) * CELL_SIZE;
-                } while (maze[Math.floor(btc.y / CELL_SIZE)][Math.floor(btc.x / CELL_SIZE)] === 1);
+                } while (isWall(btc.x, btc.y));
             }
 
-            // Coin collision
             coins = coins.filter(coin => {
                 if (checkCollision(player, coin)) {
                     score += 10;
@@ -141,7 +213,6 @@
                 return true;
             });
 
-            // Timer warning sound
             if (timer <= 10 && !isWarningPlaying) {
                 warningSound.play();
                 isWarningPlaying = true;
@@ -151,11 +222,9 @@
                 isWarningPlaying = false;
             }
 
-            // Draw
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, 800, 600);
 
-            // Draw maze
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
                     if (maze[y][x] === 1) {
@@ -165,7 +234,6 @@
                 }
             }
 
-            // Draw coins
             ctx.fillStyle = '#ff0';
             coins.forEach(coin => {
                 ctx.beginPath();
@@ -173,11 +241,9 @@
                 ctx.fill();
             });
 
-            // Draw BTC and player
             ctx.drawImage(btcImg, btc.x, btc.y, CELL_SIZE, CELL_SIZE);
             ctx.drawImage(bonzoImg, player.x, player.y, CELL_SIZE, CELL_SIZE);
 
-            // Draw HUD
             ctx.fillStyle = '#fff';
             ctx.font = '20px Arial';
             ctx.fillText(`Time: ${Math.floor(timer)}`, 10, 30);
@@ -186,10 +252,9 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Start game
         function startGame() {
             generateMaze();
-            player = { x: CELL_SIZE, y: CELL_SIZE }; // Reset player position
+            player = { x: CELL_SIZE, y: CELL_SIZE };
             score = 0;
             timer = 60;
             isWarningPlaying = false;
@@ -197,6 +262,7 @@
             gameLoop();
         }
 
+        
         bonzoImg.onload = btcImg.onload = () => startGame();
     </script>
 </body>
