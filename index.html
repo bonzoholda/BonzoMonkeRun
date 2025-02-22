@@ -77,9 +77,60 @@
         const ctx = canvas.getContext('2d');
         const controls = document.querySelector('.controls');
 
-        // Load images
+        // Load images with timeouts and fallbacks
         const bonzoImg = new Image();
         const btcImg = new Image();
+
+        let imagesLoaded = 0;
+        const totalImages = 2;
+        const imageLoadTimeout = 5000; // 5 seconds timeout for each image
+
+        function loadImage(img, src, name) {
+            return new Promise((resolve, reject) => {
+                img.onload = () => {
+                    console.log(`${name} loaded successfully`);
+                    imagesLoaded++;
+                    resolve();
+                };
+                img.onerror = () => {
+                    console.error(`Failed to load ${name}. Trying fallback or default behavior.`);
+                    img.src = ''; // Clear to prevent retry loops
+                    reject(new Error(`Image ${name} failed to load`));
+                };
+                img.src = src;
+                setTimeout(() => reject(new Error(`Timeout loading ${name}`)), imageLoadTimeout);
+            });
+        }
+
+        async function loadImages() {
+            try {
+                await Promise.all([
+                    loadImage(bonzoImg, 'bonzo_monke.png', 'bonzo_monke.png'),
+                    loadImage(btcImg, 'btc_logo.png', 'btc_logo.png')
+                ]);
+                if (imagesLoaded === totalImages) {
+                    startGame();
+                } else {
+                    console.error('Not all images loaded, defaulting to placeholders.');
+                    startGameWithPlaceholders();
+                }
+            } catch (error) {
+                console.error('Image loading error:', error);
+                startGameWithPlaceholders(); // Fallback if images fail
+            }
+        }
+
+        // Fallback to draw placeholders if images fail
+        function startGameWithPlaceholders() {
+            console.warn('Using placeholder graphics due to image loading failure.');
+            player = { x: CELL_SIZE, y: CELL_SIZE };
+            generateMaze();
+            score = 0;
+            timer = 60;
+            isWarningPlaying = false;
+            bgm.play();
+            gameLoopWithPlaceholders();
+        }
 
         // Load sounds
         const coinSound = new Audio('coin.mp3');
@@ -215,7 +266,7 @@
             });
         });
 
-        // Game loop
+        // Game loop with placeholders
         function gameLoop() {
             timer -= 1 / 60;
             if (timer <= 0) {
@@ -274,6 +325,13 @@
             if (bonzoImg.complete && btcImg.complete) {
                 ctx.drawImage(btcImg, btc.x, btc.y, CELL_SIZE, CELL_SIZE);
                 ctx.drawImage(bonzoImg, player.x, player.y, CELL_SIZE, CELL_SIZE);
+            } else {
+                console.warn('Images not fully loaded yet, using placeholders.');
+                // Placeholder rectangles for debugging
+                ctx.fillStyle = '#ff4000'; // Orange for Bonzo
+                ctx.fillRect(player.x, player.y, CELL_SIZE, CELL_SIZE);
+                ctx.fillStyle = '#ffd700'; // Gold for BTC
+                ctx.fillRect(btc.x, btc.y, CELL_SIZE, CELL_SIZE);
             }
 
             ctx.fillStyle = '#fff';
@@ -303,12 +361,8 @@
             gameLoop();
         }
 
-        // Set image sources and start game when loaded
-        bonzoImg.onload = btcImg.onload = () => startGame();
-        bonzoImg.onerror = () => console.error('Failed to load bonzo_monke.png');
-        bonzoImg.src = 'bonzo_monke.png';
-        btcImg.onerror = () => console.error('Failed to load btc_logo.png');
-        btcImg.src = 'btc_logo.png';
+        // Start loading images immediately
+        loadImages();
     </script>
 </body>
 </html>
