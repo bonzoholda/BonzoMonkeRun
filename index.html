@@ -75,62 +75,12 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const controls = document.querySelector('.controls');
 
-        // Load images with timeouts and fallbacks
+        // Load images
         const bonzoImg = new Image();
+        bonzoImg.src = 'bonzo_monke.png';
         const btcImg = new Image();
-
-        let imagesLoaded = 0;
-        const totalImages = 2;
-        const imageLoadTimeout = 5000; // 5 seconds timeout for each image
-
-        function loadImage(img, src, name) {
-            return new Promise((resolve, reject) => {
-                img.onload = () => {
-                    console.log(`${name} loaded successfully`);
-                    imagesLoaded++;
-                    resolve();
-                };
-                img.onerror = () => {
-                    console.error(`Failed to load ${name}. Trying fallback or default behavior.`);
-                    img.src = ''; // Clear to prevent retry loops
-                    reject(new Error(`Image ${name} failed to load`));
-                };
-                img.src = src;
-                setTimeout(() => reject(new Error(`Timeout loading ${name}`)), imageLoadTimeout);
-            });
-        }
-
-        async function loadImages() {
-            try {
-                await Promise.all([
-                    loadImage(bonzoImg, 'bonzo_monke.png', 'bonzo_monke.png'),
-                    loadImage(btcImg, 'btc_logo.png', 'btc_logo.png')
-                ]);
-                if (imagesLoaded === totalImages) {
-                    startGame();
-                } else {
-                    console.error('Not all images loaded, defaulting to placeholders.');
-                    startGameWithPlaceholders();
-                }
-            } catch (error) {
-                console.error('Image loading error:', error);
-                startGameWithPlaceholders(); // Fallback if images fail
-            }
-        }
-
-        // Fallback to draw placeholders if images fail
-        function startGameWithPlaceholders() {
-            console.warn('Using placeholder graphics due to image loading failure.');
-            player = { x: CELL_SIZE, y: CELL_SIZE };
-            generateMaze();
-            score = 0;
-            timer = 60;
-            isWarningPlaying = false;
-            bgm.play();
-            gameLoopWithPlaceholders();
-        }
+        btcImg.src = 'btc_logo.png';
 
         // Load sounds
         const coinSound = new Audio('coin.mp3');
@@ -157,6 +107,7 @@
 
         // Maze generation (recursive backtracking)
         function generateMaze() {
+            // Initialize maze with all walls (1)
             maze = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(1));
 
             function carve(x, y) {
@@ -174,7 +125,8 @@
                 }
             }
 
-            carve(1, 1); // Start at (1, 1)
+            // Start at (1, 1) and ensure edges remain walls
+            carve(1, 1);
 
             // Place BTC randomly in an open cell
             do {
@@ -203,6 +155,7 @@
             return maze[gridY][gridX] === 1;
         }
 
+        // Check collision (overlap of 60x60 sprites)
         function checkCollision(obj1, obj2) {
             return obj1.x < obj2.x + CELL_SIZE &&
                    obj1.x + CELL_SIZE > obj2.x &&
@@ -266,23 +219,26 @@
             });
         });
 
-        // Game loop with placeholders
+        // Game loop
         function gameLoop() {
+            // Update
             timer -= 1 / 60;
             if (timer <= 0) {
                 bgm.pause();
                 return; // Game over
             }
 
+            // BTC collision
             if (checkCollision(player, btc)) {
                 score += 500;
                 btcSound.play();
                 do {
                     btc.x = Math.floor(Math.random() * (GRID_WIDTH - 2) + 1) * CELL_SIZE;
                     btc.y = Math.floor(Math.random() * (GRID_HEIGHT - 2) + 1) * CELL_SIZE;
-                } while (isWall(btc.x, btc.y));
+                } while (maze[Math.floor(btc.y / CELL_SIZE)][Math.floor(btc.x / CELL_SIZE)] === 1);
             }
 
+            // Coin collision
             coins = coins.filter(coin => {
                 if (checkCollision(player, coin)) {
                     score += 10;
@@ -293,6 +249,7 @@
                 return true;
             });
 
+            // Timer warning sound
             if (timer <= 10 && !isWarningPlaying) {
                 warningSound.play();
                 isWarningPlaying = true;
@@ -302,9 +259,11 @@
                 isWarningPlaying = false;
             }
 
+            // Draw
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, 800, 600);
 
+            // Draw maze
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
                     if (maze[y][x] === 1) {
@@ -314,6 +273,7 @@
                 }
             }
 
+            // Draw coins
             ctx.fillStyle = '#ff0';
             coins.forEach(coin => {
                 ctx.beginPath();
@@ -321,19 +281,11 @@
                 ctx.fill();
             });
 
-            // Draw BTC and player only if images are loaded
-            if (bonzoImg.complete && btcImg.complete) {
-                ctx.drawImage(btcImg, btc.x, btc.y, CELL_SIZE, CELL_SIZE);
-                ctx.drawImage(bonzoImg, player.x, player.y, CELL_SIZE, CELL_SIZE);
-            } else {
-                console.warn('Images not fully loaded yet, using placeholders.');
-                // Placeholder rectangles for debugging
-                ctx.fillStyle = '#ff4000'; // Orange for Bonzo
-                ctx.fillRect(player.x, player.y, CELL_SIZE, CELL_SIZE);
-                ctx.fillStyle = '#ffd700'; // Gold for BTC
-                ctx.fillRect(btc.x, btc.y, CELL_SIZE, CELL_SIZE);
-            }
+            // Draw BTC and player
+            ctx.drawImage(btcImg, btc.x, btc.y, CELL_SIZE, CELL_SIZE);
+            ctx.drawImage(bonzoImg, player.x, player.y, CELL_SIZE, CELL_SIZE);
 
+            // Draw HUD
             ctx.fillStyle = '#fff';
             ctx.font = '20px Arial';
             ctx.fillText(`Time: ${Math.floor(timer)}`, 10, 30);
@@ -342,9 +294,10 @@
             requestAnimationFrame(gameLoop);
         }
 
+        // Start game
         function startGame() {
             generateMaze();
-            player = { x: CELL_SIZE, y: CELL_SIZE };
+            player = { x: CELL_SIZE, y: CELL_SIZE }; // Reset player position
             score = 0;
             timer = 60;
             isWarningPlaying = false;
@@ -361,8 +314,8 @@
             gameLoop();
         }
 
-        // Start loading images immediately
-        loadImages();
+        // Start game when images load
+        bonzoImg.onload = btcImg.onload = () => startGame();
     </script>
 </body>
 </html>
